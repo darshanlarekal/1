@@ -3,10 +3,78 @@ const dayjs = require('dayjs');
 const DailyEntry = require('../models/DailyEntry');
 const User = require('../models/User');
 
-// ─── Helper: recalculate and persist streak for a user ────────────────────────
+// // ─── Helper: recalculate and persist streak for a user ────────────────────────
+// async function recalculateStreak(userId) {
+//   const entries = await DailyEntry.find({ user: userId })
+//     .sort({ date: -1 })
+//     .select('date value')
+//     .lean();
+
+//   if (!entries.length) {
+//     await User.findByIdAndUpdate(userId, {
+//       currentStreak: 0,
+//       longestStreak: 0,
+//       totalEntries: 0,
+//     });
+//     return { currentStreak: 0, longestStreak: 0, totalEntries: 0 };
+//   }
+
+//   const today = dayjs().format('YYYY-MM-DD');
+//   const yesterday = dayjs().subtract(1, 'day').format('YYYY-MM-DD');
+
+//   let currentStreak = 0;
+//   let longestStreak = 0;
+//   let runningStreak = 0;
+//   let prevDate = null;
+//   let isActive = true;
+
+//   // Walk entries from newest to oldest
+//   for (let i = 0; i < entries.length; i++) {
+//     const entry = entries[i];
+
+//     if (i === 0) {
+//       // First (most recent) entry must be today or yesterday to be active
+//       if (entry.date === today || entry.date === yesterday) {
+//         runningStreak = 1;
+//       } else {
+//         isActive = false;
+//         runningStreak = 1;
+//       }
+//       prevDate = entry.date;
+//     } else {
+//       const diff = dayjs(prevDate).diff(dayjs(entry.date), 'day');
+//       if (diff === 1) {
+//         runningStreak++;
+//       } else {
+//         // Gap found — commit the running streak
+//         if (isActive) {
+//           currentStreak = runningStreak;
+//           isActive = false;
+//         }
+//         longestStreak = Math.max(longestStreak, runningStreak);
+//         runningStreak = 1;
+//       }
+//       prevDate = entry.date;
+//     }
+//     longestStreak = Math.max(longestStreak, runningStreak);
+//   }
+
+//   if (isActive) {
+//     currentStreak = runningStreak;
+//   }
+//   longestStreak = Math.max(longestStreak, runningStreak);
+
+//   await User.findByIdAndUpdate(userId, {
+//     currentStreak,
+//     longestStreak,
+//     totalEntries: entries.length,
+//   });
+
+//   return { currentStreak, longestStreak, totalEntries: entries.length };
+// }
 async function recalculateStreak(userId) {
   const entries = await DailyEntry.find({ user: userId })
-    .sort({ date: -1 })
+    .sort({ date: 1 }) // oldest → newest
     .select('date value')
     .lean();
 
@@ -16,53 +84,64 @@ async function recalculateStreak(userId) {
       longestStreak: 0,
       totalEntries: 0,
     });
-    return { currentStreak: 0, longestStreak: 0, totalEntries: 0 };
+
+    return {
+      currentStreak: 0,
+      longestStreak: 0,
+      totalEntries: 0,
+    };
   }
 
-  const today = dayjs().format('YYYY-MM-DD');
-  const yesterday = dayjs().subtract(1, 'day').format('YYYY-MM-DD');
-
+  // ── CURRENT STREAK ──────────────────────────
   let currentStreak = 0;
-  let longestStreak = 0;
-  let runningStreak = 0;
-  let prevDate = null;
-  let isActive = true;
 
-  // Walk entries from newest to oldest
-  for (let i = 0; i < entries.length; i++) {
-    const entry = entries[i];
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const current = entries[i];
 
-    if (i === 0) {
-      // First (most recent) entry must be today or yesterday to be active
-      if (entry.date === today || entry.date === yesterday) {
-        runningStreak = 1;
-      } else {
-        isActive = false;
-        runningStreak = 1;
-      }
-      prevDate = entry.date;
-    } else {
-      const diff = dayjs(prevDate).diff(dayjs(entry.date), 'day');
-      if (diff === 1) {
-        runningStreak++;
-      } else {
-        // Gap found — commit the running streak
-        if (isActive) {
-          currentStreak = runningStreak;
-          isActive = false;
-        }
-        longestStreak = Math.max(longestStreak, runningStreak);
-        runningStreak = 1;
-      }
-      prevDate = entry.date;
+    // streak only counts +1
+    if (current.value !== 1) break;
+
+    // check consecutive days
+    if (i < entries.length - 1) {
+      const next = entries[i + 1];
+
+      const diff = dayjs(next.date).diff(dayjs(current.date), 'day');
+
+      if (diff !== 1) break;
     }
-    longestStreak = Math.max(longestStreak, runningStreak);
+
+    currentStreak++;
   }
 
-  if (isActive) {
-    currentStreak = runningStreak;
+  // ── LONGEST STREAK ──────────────────────────
+  let longestStreak = 0;
+  let tempStreak = 0;
+
+  for (let i = 0; i < entries.length; i++) {
+    const current = entries[i];
+
+    // only +1 counts
+    if (current.value !== 1) {
+      tempStreak = 0;
+      continue;
+    }
+
+    if (i > 0) {
+      const prev = entries[i - 1];
+
+      const diff = dayjs(current.date).diff(dayjs(prev.date), 'day');
+
+      if (prev.value === 1 && diff === 1) {
+        tempStreak++;
+      } else {
+        tempStreak = 1;
+      }
+    } else {
+      tempStreak = 1;
+    }
+
+    longestStreak = Math.max(longestStreak, tempStreak);
   }
-  longestStreak = Math.max(longestStreak, runningStreak);
 
   await User.findByIdAndUpdate(userId, {
     currentStreak,
@@ -70,7 +149,11 @@ async function recalculateStreak(userId) {
     totalEntries: entries.length,
   });
 
-  return { currentStreak, longestStreak, totalEntries: entries.length };
+  return {
+    currentStreak,
+    longestStreak,
+    totalEntries: entries.length,
+  };
 }
 
 // ─── POST /api/entries ────────────────────────────────────────────────────────

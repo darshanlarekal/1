@@ -61,8 +61,9 @@ function Heatmap({ data }) {
 
   return (
     <div>
-      <div className="overflow-x-auto pb-2">
-        <div style={{ display: 'flex', gap: '2px', alignItems: 'flex-start' }}>
+      {/* <div className="overflow-x-auto pb-2"> */}
+      <div className="w-full pb-2">
+        <div style={{ display: 'flex', gap: '2px', alignItems: 'flex-start', justifyContent: 'center' }}>
           {/* Day labels */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '18px' }}>
             {['S','M','T','W','T','F','S'].map((d, i) => (
@@ -373,12 +374,13 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      <div className="bg-slate-900 rounded-2xl p-6 mt-6">
-      <h2 className="text-xl font-semibold mb-4">
-        Compound growth over time
-      </h2>
 
-      <div className="h-[300px]">
+      <div className="card p-5">
+        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">
+        Compound growth over time
+        </h2>
+
+      <div style={{ height: 200 }}>
         <Line
           data={compoundLineData}
           options={compoundLineOptions}
@@ -399,7 +401,7 @@ export default function AnalyticsPage() {
       )}
 
       {/* Heatmap */}
-      <div className="card p-5">
+      <div className="card p-5 overflow-hidden">
         <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">
           Activity heatmap (last 365 days)
         </h2>
